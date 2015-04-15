@@ -5,6 +5,7 @@ require 'bunny_wrapper/connection'
 require 'bunny_wrapper/configuration'
 require 'bunny_wrapper/railtie' if defined?(Rails)
 require 'bunny_wrapper/consumer'
+require 'bunny'
 
 module BunnyWrapper
 
