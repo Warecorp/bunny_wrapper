@@ -2,6 +2,8 @@
 
 TODO: Write a gem description
 
+Note: need fix the time in the log - be careful - it is initialize time
+
 ## Installation
 
 Add this line to your application's Gemfile:
