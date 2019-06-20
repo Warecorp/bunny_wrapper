@@ -17,13 +17,13 @@ module BunnyWrapper
 
     def initialize_logger
       logger_path = Dir.mkdir("log/consumer") unless File.exists?("log/consumer")
-      @logger = Logger.new("#{@queue_name} #{Time.now}")
+      @logger = Logger.new("#{@queue_name}")
       @logger.add FileOutputter.new(
         @queue_name,
         filename: "#{Rails.root}/log/consumer/queue_#{@queue_name}.log"
       )
       @logger.add Outputter.stdout unless Rails.env.test?
-      @logger.info "Consumer initialized for queue |#{@queue_name}| and key |#{@routing_keys}|"
+      @logger.info "#{Time.now} | Consumer initialized for queue |#{@queue_name}| and key |#{@routing_keys}|"
       @logger.level = Log4r::DEBUG
     end
 
@@ -33,8 +33,12 @@ module BunnyWrapper
       end
 
       @queue.subscribe(manual_ack: true, block: true) do |delivery_info, properties, body|
-        @logger.info " [x] Routing key |#{delivery_info.routing_key}| received |#{body}|"
-        handle_message(delivery_info, properties, body)
+        @logger.info "#{Time.now} [x] Routing key |#{delivery_info.routing_key}| received |#{body}|"
+        begin
+          handle_message(delivery_info, properties, body)
+        rescue Exception => e
+          @logger.error "Exception: #{body} | #{e.message}"
+        end
       end
     end
 
@@ -46,13 +50,14 @@ module BunnyWrapper
       begin
         klass.new.perform(*args)
         @channel.ack(delivery_info.delivery_tag)
-        @logger.info "ACCEPTED: #{parsed_body}"
+        @logger.info "#{Time.now} ACCEPTED: #{parsed_body}"
       rescue Exception => e
-        @logger.error "#{e.message}"
+        @logger.error "Exception: #{parsed_body} | #{e.message}"
         @channel.reject(delivery_info.delivery_tag)
         if parsed_body['retries'] >= RETRIES_COUNT
-          @logger.warn "REJECTED: #{parsed_body}"
+          @logger.warn "#{Time.now} REJECTED: #{parsed_body}"
         else
+          sleep(5)
           requeue(parsed_body, delivery_info.routing_key)
         end
       end
@@ -60,7 +65,7 @@ module BunnyWrapper
 
     def requeue(payload, routing_key)
       payload['retries'] += 1
-      @logger.warn "RETRY #{payload}"
+      @logger.warn "#{Time.now} RETRY #{payload}"
 
       BunnyWrapper::Publisher.publish_message(payload.to_json, routing_key)
     end
